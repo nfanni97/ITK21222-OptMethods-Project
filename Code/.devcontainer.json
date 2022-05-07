@@ -1,0 +1,6 @@
+{
+    "name": "Python slim",
+    "image": "python:3.10-slim",
+    "context": ".",
+    "extensions": ["donjayamanne.python-extension-pack"]
+}
