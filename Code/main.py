@@ -1,8 +1,10 @@
 from model import Model, City
 from typing import List, Dict
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 def get_city_object(name: str, prev_cities: List[City]) -> City:
-    print(f'looking for city {name} in: {",".join([c.name for c in prev_cities])}')
     for c in prev_cities:
         if c.name == name:
             return c
@@ -38,3 +40,4 @@ def get_model(caps_file: str, costs_file: str) -> Model:
 
 if __name__ == '__main__':
     model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
+    model.greedy_feasible()
