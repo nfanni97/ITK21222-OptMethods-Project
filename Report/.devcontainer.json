@@ -1,0 +1,7 @@
+{
+    "image": "tianon/latex:latest",
+    "extensions": ["james-yu.latex-workshop","torn4dom4n.latex-support","nickfode.latex-formatter","nickfode.latex-formatter"],
+    "settings": {
+        "latex-workshop.latex.outDir": "./latex_build"
+    },
+}

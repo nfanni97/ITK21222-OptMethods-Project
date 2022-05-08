@@ -1,8 +1,8 @@
 from __future__ import annotations
-from asyncio import transports
-from cmath import log
-from typing import Dict, List
+import math
+from typing import Dict, List, Tuple
 import logging
+import random
 
 
 class City:
@@ -125,10 +125,83 @@ class Model:
         m1.backwards_greedy()
         # load all created transports
         self.transports = m1.transports + m2.transports
+        # reset capacities to originals
+        for i in range(len(self.cities)):
+            if self.cities[i].name[0] == 'B':
+                self.cities[i].capacity = original_B_capacity[self.cities[i]]
         logger.debug(f'all transports:')
         for t in self.transports:
             logger.debug(f'\t{t}')
         print(f'the cost of the greedy feasible solution: {self.cost}')
+        
+    def simulated_annealing(self,max_iter: int,starting_T: float, decrease_value: float) -> None:
+        logger = self.logger.getChild('simulated_annealing')
+        # initial cost
+        self.greedy_feasible()
+        current_z = self.cost
+        logger.debug(f'initial cost: {current_z}')
+        T = starting_T
+        current_iter: int = 0
+        while current_iter < max_iter:
+            logger.debug(f'#{current_iter}')
+            # get new problem
+            s_1,s_2,d,moved = self.mutate_solution()
+            new_z = self.cost
+            logger.debug(f'new cost: {new_z}')
+            if new_z < current_z:
+                current_z = new_z
+                logger.debug(f'new cost lower, accepting')
+            else:
+                p = random.random()
+                logger.debug(f'new cost larger or same, p = {p}')
+                q = math.exp((current_z-new_z)/T)
+                logger.debug(f'q = {q}')
+                if q > p:
+                    logger.debug(f'q was larger than p, accepting new candidate')
+                    current_z = new_z
+                else:
+                    logger.debug(f'q was smaller than p, going back to original solution')
+                    permutate_transport(s_2,s_1,d,moved,self.transports,logger)
+            T -= decrease_value
+            current_iter += 1
+        print(f'finished with all iterations, current cost is {self.cost}')
+            
+            
+        
+        
+    def _get_sources_destination(self,sources) -> Tuple[City,City,City]:
+        # find a destination and a source randomly (d,s_1, respectively) between which there is already a transport
+        s_1: City = random.choice(sources)
+        d: City = random.choice([t.destination for t in self.transports if t.source == s_1])
+        # find another source that is not full
+        s_2: City = random.choice([c for c in sources if c != s_1])
+        return s_1,s_2,d
+        
+    def mutate_solution(self) -> Tuple[City,City,City,int]:
+        logger = self.logger.getChild('mutate_solution')
+        # choose which layer will be modified
+        isAB: bool = random.choice([True,False])
+        if isAB:
+            s_1,s_2,d = self._get_sources_destination(self.cities_A)
+        else:
+            s_1,s_2,d = self._get_sources_destination(self.cities_B)
+        # transport x units from s_2 instead of s_1
+        logger.debug(f'trying to mutate {s_1.name}->{d.name} to {s_1.name}+{s_2.name}->{d.name}')
+        logger.debug(f's_1 {s_1.name} capacity {s_1.capacity}, s_2 {s_2.name} leftover {s_2.leftover}')
+        max_movable: int = min(s_1.capacity, s_2.leftover)
+        to_move: int = random.randint(1,max_movable)
+        permutate_transport(s_1,s_2,d,to_move,self.transports, logger)
+        return s_1,s_2,d,to_move
+        
+def permutate_transport(s_1: City, s_2: City,d: City,amount: int, transports: List[Transport], parentLogger: logging.Logger) -> None:
+    logger: logging.Logger = parentLogger.getChild('permutate_transport')
+    logger.info(f'permutating transport between {s_1.name}/{s_2.name} -> {d.name}')
+    # get original transport
+    original: Transport = transports[transports.index(Transport(s_1,d,0,0))]
+    logger.debug(f'found original transport: {original}')
+    original.units -= amount
+    # transport through s_2 instead
+    transport(s_2,d,amount,transports,logger)
 
             
 def transport(source: City, dest: City, amount: int, previous_transports: List[Transport],parentLogger: logging.Logger) -> None:

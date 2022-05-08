@@ -40,4 +40,4 @@ def get_model(caps_file: str, costs_file: str) -> Model:
 
 if __name__ == '__main__':
     model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
-    model.greedy_feasible()
+    model.simulated_annealing(10,3200,10)
