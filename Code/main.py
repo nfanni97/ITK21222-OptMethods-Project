@@ -39,5 +39,8 @@ def get_model(caps_file: str, costs_file: str) -> Model:
 
 
 if __name__ == '__main__':
-    model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
-    model.simulated_annealing(1000,10000,10)
+    costs = []
+    for i in range(15):
+        model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
+        costs.append(model.simulated_annealing(1000,10000,10))
+    print(f'mean: {sum(costs)/len(costs)}, min: {min(costs)}')

@@ -1,0 +1,80 @@
+\documentclass{article}
+
+\author{Fanni Dorottya Nagy\\F197A4}
+\date{May 8, 2022}
+\title{Optimization Methods Assignment Documentation}
+
+\begin{document}
+\maketitle
+\section{Problem}
+First task, complex transportation problem.
+
+A company produces computers in 8 cities, A1,…,A8.
+The amount that they can produce per year (at most) is as follows: 280, 400, 3000, 240, 1200, 430,
+2300, 650.
+The cost of production is as follows (per unit): 250, 650, 340, 970, 650, 340, 450, 650.
+They transport the computers to 9 cities, C1,…,C9.
+The demand is as follows: 230, 130, 250, 345, 650, 350, 320, 540, 1200.
+
+There is also some initial cost if production is made, it is 2000 dollar at any factory.
+The transportation goes through the next cities: B1,…,B5.
+
+It also holds that in the intermediate places (B1,…,B5) at most the following units can be
+transported: 1300, 1200, 750, 790, 2300.
+
+Let us determine the optimal transportation plan ( how much should be transported from what place
+to what place through what cities) so that the total cost is minimum!
+
+Transportation costs are found in the csv files in the attached repository.
+
+\section{Discussion}
+\subsection{Selected Algorithm}
+The problem is solved by the "Simulated Annealing" algorithm as the chosen neighborhood structure was best suited for randomly generated neighbors instead of an exhaustive search demanded by Tabu Search.
+The meta parameters are the number of iterations, the initial temperature and the value with which it should be decreased in each iteration.
+Stopping criteria is simply that the set number of iterations have been completed.
+
+\subsection{Neighborhood definition}
+The simplest neighborhood definition was chosen that I could come up with.
+$x_1$ and $x_2$ are neighbors if we can get $x_2$ from $x_1$ by choosing a transport in the first layer (A-\textgreater B) and moving some of its units from another source instead.
+
+\textbf{Example}
+
+Let us assume that we are currently at the following solution:
+\begin{itemize}
+    \item 280 from A1 to B1
+    \item 400 from A2 to B1
+    \item 620 from A3 to B1
+    \item 1200 from A3 to B2
+    \item 750 from A3 to B3
+    \item 430 from A3 to B4
+    \item 240 from A4 to B4
+    \item 95 from A5 to B4
+    \item 230 from B1 to C1
+    \item 130 from B1 to C2
+    \item 250 from B1 to C3
+    \item 345 from B1 to C4
+    \item 345 from B1 to C5
+    \item 305 from B2 to C5
+    \item 350 from B2 to C6
+    \item 320 from B2 to C7
+    \item 225 from B2 to C8
+    \item 315 from B3 to C8
+    \item 435 from B3 to C9
+    \item 765 from B4 to C9
+\end{itemize}
+Additionally, assume that the random generator selected transport A3-\textgreater B1 and the city A8.
+Then, at most $min(620,3000)$ can be moved: 620 was transported from this location, while at most 3000 can be moved to A8.
+From this, the amount to be transferred from A8 instead of from A3 is also selected randomly, let's say 598.
+Then, the original transport is modified and another one is added:
+\begin{itemize}
+    \item 22 from A3 to B1
+    \item 598 from A8 to B1
+\end{itemize}
+
+\subsection{Result}
+As there are multiple randomized steps in the neighborhood generator (selecting transport, selecting new city, amount to be moved) the solution will always be different.
+Hence it is not possible to know if the solution after the last iteration is optimal.
+
+In the provided code, the algorithm is run 15 times with the same hyperparameters.
+It was found that while the cost of the implemented greedy solution was 260 790, the mean of the 15 runs is around 225 000 and the minimum is around 210-215 000.
+\end{document}

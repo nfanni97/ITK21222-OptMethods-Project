@@ -127,7 +127,7 @@ class Model:
             logger.debug(f'\t{t}')
         print(f'the cost of the greedy feasible solution: {self.cost}')
         
-    def simulated_annealing(self,max_iter: int,starting_T: float, decrease_value: float) -> None:
+    def simulated_annealing(self,max_iter: int,starting_T: float, decrease_value: float) -> int:
         logger = self.logger.getChild('simulated_annealing')
         # initial cost
         self.greedy_feasible()
@@ -138,6 +138,7 @@ class Model:
         while current_iter < max_iter:
             if current_z < 0:
                 logger.error(f'NEGATIVE COST!')
+                raise Exception(f'negative cost! {current_z}')
             logger.debug(f'#{current_iter}')
             # get new problem
             s_1,s_2,d,moved = self.mutate_solution()
@@ -160,6 +161,7 @@ class Model:
             T -= decrease_value
             current_iter += 1
         print(f'finished with all iterations, current cost is {self.cost}')
+        return self.cost
             
             
         
@@ -174,12 +176,7 @@ class Model:
         
     def mutate_solution(self) -> Tuple[City,City,City,int]:
         logger = self.logger.getChild('mutate_solution')
-        # choose which layer will be modified
-        isAB: bool = random.choice([True,False])
-        if isAB:
-            s_1,s_2,d = self._get_sources_destination(self.cities_A)
-        else:
-            s_1,s_2,d = self._get_sources_destination(self.cities_B)
+        s_1,s_2,d = self._get_sources_destination(self.cities_A)
         # transport x units from s_2 instead of s_1
         logger.debug(f'trying to mutate {s_1.name}->{d.name} to {s_1.name}+{s_2.name}->{d.name}')
         logger.debug(f's_1 {s_1.name} current capacity {s_1.current_source_capacity}, s_2 {s_2.name} leftover {s_2.capacity-s_2.current_source_capacity}')
