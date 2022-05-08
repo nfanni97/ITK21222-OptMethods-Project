@@ -2,7 +2,7 @@ from model import Model, City
 from typing import List, Dict
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG,filename='log.log',filemode='w')
 
 def get_city_object(name: str, prev_cities: List[City]) -> City:
     for c in prev_cities:
@@ -40,4 +40,4 @@ def get_model(caps_file: str, costs_file: str) -> Model:
 
 if __name__ == '__main__':
     model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
-    model.simulated_annealing(10,3200,10)
+    model.simulated_annealing(1000,10000,10)

@@ -4,32 +4,26 @@ from typing import Dict, List, Tuple
 import logging
 import random
 
+# TODO: city: current capacity = source cap+dest cap for different treating ICO B
 
 class City:
     def __init__(self, name: str, cap: int, transports: Dict[City, int], base: int = 0) -> None:
         self.logger = logging.getLogger('City')
         self.name: str = name
         self.capacity: int = cap  # supply for source, demand for destination
-        self.current_capacity = 0
+        self.current_source_capacity = 0
+        self.current_dest_capacity = 0
         self.base_cost: int = base  # for source cities
         self.transports: Dict[City, int] = transports  # cost of destination
 
     def can_transport_to(self, dest: City, amount: int) -> bool:
-        return dest in self.transports and amount+self.current_capacity <= self.capacity and amount+dest.current_capacity <= dest.capacity
+        return dest in self.transports and amount+self.current_source_capacity <= self.capacity and amount+dest.current_dest_capacity <= dest.capacity
 
     def __str__(self) -> str:
-        r = f'name: {self.name}, base: {self.base_cost}, {self.current_capacity}/{self.capacity}'
+        r = f'name: {self.name}, base: {self.base_cost}, s{self.current_source_capacity},d{self.current_dest_capacity}/{self.capacity}'
         for city, cost in self.transports.items():
             r += f'\n\t{city.name} -> {cost}'
         return r
-
-    @property
-    def is_full(self) -> bool:
-        return self.capacity == self.current_capacity
-
-    @property
-    def leftover(self) -> int:
-        return self.capacity-self.current_capacity
 
 
 class Transport:
@@ -71,10 +65,10 @@ class SubModel:
             for current_s in self.sources:
                 if d in current_s.transports:
                     # transport max possible
-                    transport(current_s, d, min(d.leftover, current_s.leftover),self.transports,logger)
-                if d.is_full:
+                    transport(current_s, d, min(d.capacity-d.current_dest_capacity, current_s.capacity-current_s.current_source_capacity),self.transports,logger)
+                if d.current_dest_capacity == d.capacity:
                     break
-            if not d.is_full:
+            if d.current_dest_capacity != d.capacity:
                 raise Exception(
                     f'exceeded all Bs but {d.name} is still not full')
 
@@ -87,7 +81,7 @@ class Model:
 
     @property
     def cost(self) -> int:
-        return sum(self.transports, 0) + sum([c.base_cost for c in self.cities if c.current_capacity > 0], 0)
+        return sum(self.transports, 0) + sum([c.base_cost for c in self.cities if c.current_source_capacity > 0 and c.name[0] == 'A'], 0)
 
     @property
     def cities_A(self) -> List[City]:
@@ -116,8 +110,7 @@ class Model:
         original_B_capacity: Dict[City,int] = {b: b.capacity for b in self.cities_B}
         # and reset currents
         for b in self.cities_B:
-            b.capacity = b.current_capacity
-            b.current_capacity = 0
+            b.capacity = b.current_source_capacity
         logger.debug(f'new capacities for Bs:')
         for b in self.cities_B:
             logger.debug(f'{b.name}: {b.capacity}')
@@ -143,6 +136,8 @@ class Model:
         T = starting_T
         current_iter: int = 0
         while current_iter < max_iter:
+            if current_z < 0:
+                logger.error(f'NEGATIVE COST!')
             logger.debug(f'#{current_iter}')
             # get new problem
             s_1,s_2,d,moved = self.mutate_solution()
@@ -171,10 +166,10 @@ class Model:
         
     def _get_sources_destination(self,sources) -> Tuple[City,City,City]:
         # find a destination and a source randomly (d,s_1, respectively) between which there is already a transport
-        s_1: City = random.choice(sources)
+        s_1: City = random.choice([t.source for t in self.transports if t.source in sources])
         d: City = random.choice([t.destination for t in self.transports if t.source == s_1])
         # find another source that is not full
-        s_2: City = random.choice([c for c in sources if c != s_1])
+        s_2: City = random.choice([c for c in sources if c != s_1 and c.current_source_capacity < c.capacity])
         return s_1,s_2,d
         
     def mutate_solution(self) -> Tuple[City,City,City,int]:
@@ -187,9 +182,16 @@ class Model:
             s_1,s_2,d = self._get_sources_destination(self.cities_B)
         # transport x units from s_2 instead of s_1
         logger.debug(f'trying to mutate {s_1.name}->{d.name} to {s_1.name}+{s_2.name}->{d.name}')
-        logger.debug(f's_1 {s_1.name} capacity {s_1.capacity}, s_2 {s_2.name} leftover {s_2.leftover}')
-        max_movable: int = min(s_1.capacity, s_2.leftover)
-        to_move: int = random.randint(1,max_movable)
+        logger.debug(f's_1 {s_1.name} current capacity {s_1.current_source_capacity}, s_2 {s_2.name} leftover {s_2.capacity-s_2.current_source_capacity}')
+        # max_movable: min(how much s_1 transports to d, how much s_2 has left)
+        max_movable: int = min(
+            self.transports[self.transports.index(Transport(s_1,d,0,0))].units,
+            s_2.capacity-s_2.current_source_capacity)
+        logger.debug(f'max movable is {max_movable}')
+        if max_movable == 1:
+            to_move: int = 1
+        else:
+            to_move: int = random.randint(1,max_movable)
         permutate_transport(s_1,s_2,d,to_move,self.transports, logger)
         return s_1,s_2,d,to_move
         
@@ -200,8 +202,17 @@ def permutate_transport(s_1: City, s_2: City,d: City,amount: int, transports: Li
     original: Transport = transports[transports.index(Transport(s_1,d,0,0))]
     logger.debug(f'found original transport: {original}')
     original.units -= amount
+    original.source.current_source_capacity -= amount
+    original.destination.current_dest_capacity -= amount
+    logger.debug(f'after removing {amount}: {original}')
+    if original.units == 0:
+        logger.debug(f'amount decreased to zero, removing from list')
+        transports.remove(original)
+    if Transport(s_2,d,0,0) in transports:
+        logger.debug(f'there was already transport: {transports[transports.index(Transport(s_2,d,0,0))]}')
     # transport through s_2 instead
     transport(s_2,d,amount,transports,logger)
+    logger.debug(f'new transport: {transports[transports.index(Transport(s_2,d,0,0))]}')
 
             
 def transport(source: City, dest: City, amount: int, previous_transports: List[Transport],parentLogger: logging.Logger) -> None:
@@ -213,8 +224,8 @@ def transport(source: City, dest: City, amount: int, previous_transports: List[T
             if not source.can_transport_to(dest, amount):
                 raise Exception(
                     f'cannot transport {amount} units from {source.name} to {dest.name}')
-            source.current_capacity += amount
-            dest.current_capacity += amount
+            source.current_source_capacity += amount
+            dest.current_dest_capacity += amount
             try:
                 new_transport = Transport(
                     source, dest, amount, source.transports[dest])
