@@ -35,12 +35,22 @@ def get_model(caps_file: str, costs_file: str) -> Model:
     cities = get_cities_with_prefix([], 'C', caps_file, costs_file)
     cities += get_cities_with_prefix(cities, 'B', caps_file, costs_file)
     cities += get_cities_with_prefix(cities, 'A', caps_file, costs_file)
+    for c in cities:
+        if c.name[0] == 'A':
+            c.base_cost = 2000
     return Model(cities)
 
 
 if __name__ == '__main__':
     costs = []
-    for i in range(15):
-        model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
-        costs.append(model.simulated_annealing(1000,10000,10))
-    print(f'mean: {sum(costs)/len(costs)}, min: {min(costs)}')
+    iters = 15000 # including fine tuning iterations
+    start_T = 10000
+    decrease_T = .6
+    fine_tune_iters = 100
+    if fine_tune_iters > iters:
+        raise Exception(f'the number of fine tuning iterations ({fine_tune_iters}) should not be more than the number of iterations ({iters})')
+    if decrease_T*iters > start_T:
+        raise Exception(f'the value of T ({start_T}) should be at least as large as the decrease value ({decrease_T}) times iterations ({iters})')
+    model: Model = get_model('problem_caps.csv', 'problem_costs.csv')
+    model.simulated_annealing(iters,fine_tune_iters,start_T,decrease_T)
+    model.write_to_file(f'{i+1}_sol')

@@ -127,7 +127,7 @@ class Model:
             logger.debug(f'\t{t}')
         print(f'the cost of the greedy feasible solution: {self.cost}')
         
-    def simulated_annealing(self,max_iter: int,starting_T: float, decrease_value: float) -> int:
+    def simulated_annealing(self,max_iter: int,fine_tune_iters: int,starting_T: float, decrease_value: float) -> int:
         logger = self.logger.getChild('simulated_annealing')
         # initial cost
         self.greedy_feasible()
@@ -135,7 +135,7 @@ class Model:
         logger.debug(f'initial cost: {current_z}')
         T = starting_T
         current_iter: int = 0
-        while current_iter < max_iter:
+        while current_iter < max_iter-fine_tune_iters:
             if current_z < 0:
                 logger.error(f'NEGATIVE COST!')
                 raise Exception(f'negative cost! {current_z}')
@@ -160,10 +160,60 @@ class Model:
                     permutate_transport(s_2,s_1,d,moved,self.transports,logger)
             T -= decrease_value
             current_iter += 1
+        # fine tuning
+        while current_iter < max_iter:
+            s_1,s_2,d,moved = self.mutate_solution(max_movable=1)
+            new_z = self.cost
+            logger.debug(f'new cost: {new_z}')
+            if new_z < current_z:
+                current_z = new_z
+                logger.debug(f'new cost lower, accepting')
+            else:
+                p = random.random()
+                logger.debug(f'new cost larger or same, p = {p}')
+                q = math.exp((current_z-new_z)/T)
+                logger.debug(f'q = {q}')
+                if q > p:
+                    logger.debug(f'q was larger than p, accepting new candidate')
+                    current_z = new_z
+                else:
+                    logger.debug(f'q was smaller than p, going back to original solution')
+                    permutate_transport(s_2,s_1,d,moved,self.transports,logger)
+            current_iter += 1
+            T -= decrease_value
         print(f'finished with all iterations, current cost is {self.cost}')
         return self.cost
+    
+    def _get_city_by_name(self,name: str) -> City:
+        for c in self.cities:
+            if c.name == name:
+                return c
+        raise Exception(f'no city named {name}')
             
-            
+    def write_to_file(self,filename: str) -> None:
+        logger = self.logger.getChild('write_to_file')
+        with open(f'f{filename}_ab.csv','w') as f:
+            f.write(f'A,{",".join("B"+str(i) for i in range(1,6))}\n')
+            for a in range(1,9):
+                f.write(f'A{a}')
+                for b in range(1,6):
+                    t = Transport(self._get_city_by_name(f'A{a}'),self._get_city_by_name(f'B{b}'),0,0)
+                    if t in self.transports:
+                        f.write(f',{self.transports[self.transports.index(t)].units}')
+                    else:
+                        f.write(',0')
+                f.write('\n')
+        with open(f'{filename}_bc.csv','w') as f:
+            f.write(f'B,{",".join("C"+str(i) for i in range(1,10))}\n')
+            for b in range(1,6):
+                f.write(f'B{b}')
+                for c in range(1,10):
+                    t = Transport(self._get_city_by_name(f'B{b}'),self._get_city_by_name(f'C{c}'),0,0)
+                    if t in self.transports:
+                        f.write(f',{self.transports[self.transports.index(t)].units}')
+                    else:
+                        f.write(',0')
+                f.write('\n')
         
         
     def _get_sources_destination(self,sources) -> Tuple[City,City,City]:
@@ -174,16 +224,17 @@ class Model:
         s_2: City = random.choice([c for c in sources if c != s_1 and c.current_source_capacity < c.capacity])
         return s_1,s_2,d
         
-    def mutate_solution(self) -> Tuple[City,City,City,int]:
+    def mutate_solution(self,max_movable: int = None) -> Tuple[City,City,City,int]:
         logger = self.logger.getChild('mutate_solution')
         s_1,s_2,d = self._get_sources_destination(self.cities_A)
         # transport x units from s_2 instead of s_1
         logger.debug(f'trying to mutate {s_1.name}->{d.name} to {s_1.name}+{s_2.name}->{d.name}')
         logger.debug(f's_1 {s_1.name} current capacity {s_1.current_source_capacity}, s_2 {s_2.name} leftover {s_2.capacity-s_2.current_source_capacity}')
         # max_movable: min(how much s_1 transports to d, how much s_2 has left)
-        max_movable: int = min(
-            self.transports[self.transports.index(Transport(s_1,d,0,0))].units,
-            s_2.capacity-s_2.current_source_capacity)
+        if max_movable is None:
+            max_movable: int = min(
+                self.transports[self.transports.index(Transport(s_1,d,0,0))].units,
+                s_2.capacity-s_2.current_source_capacity)
         logger.debug(f'max movable is {max_movable}')
         if max_movable == 1:
             to_move: int = 1
